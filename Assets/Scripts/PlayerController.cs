@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour {
     public float moveSpeed = 5f;
     public float jumpForce = 7f;
+    public Transform cameraTransform; // Reference to the main camera's transform
 
     private PlayerInputActions inputActions;
     private Rigidbody rb;
@@ -34,22 +35,56 @@ public class PlayerController : MonoBehaviour {
     void Start() {
         rb = GetComponent<Rigidbody>();
         Physics.gravity = gravityDirection * 9.81f;
+
+        // If cameraTransform isn't set, try to find the main camera
+        if (cameraTransform == null) {
+            cameraTransform = Camera.main.transform;
+        }
     }
 
     void Update() {
-        // Nothing in Update for now
+        // Make the player face the camera's forward direction (but keep upright)
+        if (cameraTransform != null) {
+            // Get camera's forward direction, but ignore pitch (up/down) rotation
+            Vector3 cameraForward = cameraTransform.forward;
+            cameraForward.y = 0; // Keep the player upright
+            cameraForward.Normalize();
+
+            if (cameraForward != Vector3.zero) {
+                transform.forward = cameraForward;
+            }
+        }
     }
 
     void FixedUpdate() {
-        Vector3 move = new Vector3(moveInput.x, 0f, moveInput.y);
-        Vector3 worldMove = transform.TransformDirection(move) * moveSpeed;
+        // Calculate movement relative to camera
+        Vector3 move = Vector3.zero;
+        if (cameraTransform != null) {
+            // Get camera's forward and right vectors (ignoring pitch)
+            Vector3 cameraForward = cameraTransform.forward;
+            cameraForward.y = 0;
+            cameraForward.Normalize();
+
+            Vector3 cameraRight = cameraTransform.right;
+            cameraRight.y = 0;
+            cameraRight.Normalize();
+
+            // Combine input with camera orientation
+            move = (cameraForward * moveInput.y + cameraRight * moveInput.x).normalized;
+        }
+        else {
+            // Fallback to local movement if no camera
+            move = new Vector3(moveInput.x, 0f, moveInput.y);
+        }
+
+        // Apply movement
+        Vector3 worldMove = move * moveSpeed;
         rb.linearVelocity = new Vector3(worldMove.x, rb.linearVelocity.y, worldMove.z);
 
         if (jumpPressed && isGrounded) {
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, isInverted ? -jumpForce : jumpForce, rb.linearVelocity.z);
+            jumpPressed = false;
         }
-
-        jumpPressed = false; // reset after applying
     }
 
     void InvertGravity() {
