@@ -9,15 +9,22 @@ public class PlayerController : MonoBehaviour {
     public float jumpCooldown = 0.5f; // Cooldown duration in seconds
     private float jumpCooldownTimer = 0f;
     public Transform cameraTransform; // Reference to the camera transform
+    public GameObject PlayerModel;
 
     [SerializeField]
     private Animator animator;
     private PlayerInputActions inputActions;
     private Rigidbody rb;
+    public GameObject aimCamera;
+    public GameObject crosshairUI;
+
     private Vector2 moveInput;
     private bool jumpPressed = false;
     private bool isGrounded = false;
     private bool isMoving = false;
+    private bool isAiming = false;
+    private bool shootPressed = false;
+
 
     void OnEnable() => inputActions.Enable();
     void OnDisable() => inputActions.Disable();
@@ -33,6 +40,10 @@ public class PlayerController : MonoBehaviour {
             isMoving = false;
         };
         inputActions.Player.Jump.performed += _ => jumpPressed = true;
+        inputActions.Player.Aim.performed += _ => isAiming = true;
+        inputActions.Player.Aim.canceled += _ => isAiming = false;
+
+        inputActions.Player.Shoot.performed += _ => shootPressed = true;
     }
 
     void Start() {
@@ -42,6 +53,11 @@ public class PlayerController : MonoBehaviour {
     }
 
     void Update() {
+        animator.SetBool("IsAiming", isAiming);
+        aimCamera.SetActive(isAiming);
+        PlayerModel.SetActive(!isAiming);
+        crosshairUI.SetActive(isAiming);
+
         // Reduce jump cooldown timer
         if (jumpCooldownTimer > 0f) {
             jumpCooldownTimer -= Time.deltaTime;
@@ -55,25 +71,41 @@ public class PlayerController : MonoBehaviour {
 
 
     void FixedUpdate() {
-        // Only align with camera when moving
-        if (isMoving) {
-            // Get camera forward direction, ignoring vertical component
-            Vector3 cameraForward = cameraTransform.forward;
-            cameraForward.y = 0;
-            cameraForward.Normalize();
-
-            // Calculate target rotation
-            Quaternion targetRotation = Quaternion.LookRotation(cameraForward);
-
-            // Smoothly rotate towards the target rotation
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
-        }
-
         // Movement relative to camera direction
         Vector3 move = new Vector3(moveInput.x, 0f, moveInput.y);
         Vector3 worldMove = cameraTransform.TransformDirection(move) * moveSpeed;
         worldMove.y = 0; // Ensure we don't move vertically
         rb.linearVelocity = new Vector3(worldMove.x, rb.linearVelocity.y, worldMove.z);
+
+        if (isAiming && shootPressed) {
+            shootPressed = false; // reset
+
+            Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
+            if (Physics.Raycast(ray, out RaycastHit hit, 100f)) {
+                Debug.Log("Hit: " + hit.collider.name);
+
+                // Optional: Add damage logic here
+                // e.g., hit.collider.GetComponent<Enemy>()?.TakeDamage();
+            }
+        }
+
+        if (isAiming) {
+            // Rotate towards camera forward (full 3D)
+            Vector3 aimDirection = cameraTransform.forward;
+            aimDirection.y = 0f; // Keep only horizontal direction
+            if (aimDirection.sqrMagnitude > 0.01f) {
+                Quaternion targetRotation = Quaternion.LookRotation(aimDirection);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+            }
+
+        }
+        else if (isMoving) {
+            Vector3 cameraForward = cameraTransform.forward;
+            cameraForward.y = 0;
+            cameraForward.Normalize();
+            Quaternion targetRotation = Quaternion.LookRotation(cameraForward);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+        }
 
         // Jumping
         if (jumpPressed && isGrounded && jumpCooldownTimer <= 0f) {
