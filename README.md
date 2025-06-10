@@ -91,8 +91,7 @@ This project is currently in prototype stage and not open for public contributio
 
 **Muhammad Usman Butt**  
 Unity Developer | Game Designer | VR/AR Enthusiast  
-**Portfolio:** [usmanbutt.dev](usmanbutt-dev.netlify.app)  
-**GitHub:** [github.com/usman-dev](https://github.com/usman-dev)
+**Portfolio:** [Website](https://usmanbutt-dev.netlify.app)
 
 ---
 
