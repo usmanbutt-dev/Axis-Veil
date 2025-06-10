@@ -5,98 +5,70 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour {
     public float moveSpeed = 5f;
     public float jumpForce = 7f;
-    public Transform cameraTransform; // Reference to the main camera's transform
+    public float rotationSpeed = 5f;
+    public Transform cameraTransform; // Reference to the camera transform
 
     private PlayerInputActions inputActions;
     private Rigidbody rb;
     private Vector2 moveInput;
     private bool jumpPressed = false;
     private bool isGrounded = false;
-    private bool isInverted = false;
-    private Vector3 gravityDirection = Vector3.down;
+    private bool isMoving = false;
 
     void Awake() {
         inputActions = new PlayerInputActions();
-        inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
-        inputActions.Player.Move.canceled += _ => moveInput = Vector2.zero;
-
+        inputActions.Player.Move.performed += ctx => {
+            moveInput = ctx.ReadValue<Vector2>();
+            isMoving = moveInput.magnitude > 0.1f;
+        };
+        inputActions.Player.Move.canceled += _ => {
+            moveInput = Vector2.zero;
+            isMoving = false;
+        };
         inputActions.Player.Jump.performed += _ => jumpPressed = true;
-        inputActions.Player.Invert.performed += _ => InvertGravity();
-    }
-
-    void OnEnable() {
-        inputActions.Enable();
-    }
-
-    void OnDisable() {
-        inputActions.Disable();
     }
 
     void Start() {
         rb = GetComponent<Rigidbody>();
-        Physics.gravity = gravityDirection * 9.81f;
-
-        // If cameraTransform isn't set, try to find the main camera
-        if (cameraTransform == null) {
-            cameraTransform = Camera.main.transform;
-        }
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
-    void Update() {
-        // Make the player face the camera's forward direction (but keep upright)
-        if (cameraTransform != null) {
-            // Get camera's forward direction, but ignore pitch (up/down) rotation
-            Vector3 cameraForward = cameraTransform.forward;
-            cameraForward.y = 0; // Keep the player upright
-            cameraForward.Normalize();
-
-            if (cameraForward != Vector3.zero) {
-                transform.forward = cameraForward;
-            }
-        }
-    }
+    void OnEnable() => inputActions.Enable();
+    void OnDisable() => inputActions.Disable();
 
     void FixedUpdate() {
-        // Calculate movement relative to camera
-        Vector3 move = Vector3.zero;
-        if (cameraTransform != null) {
-            // Get camera's forward and right vectors (ignoring pitch)
+        // Only align with camera when moving
+        if (isMoving) {
+            // Get camera forward direction, ignoring vertical component
             Vector3 cameraForward = cameraTransform.forward;
             cameraForward.y = 0;
             cameraForward.Normalize();
 
-            Vector3 cameraRight = cameraTransform.right;
-            cameraRight.y = 0;
-            cameraRight.Normalize();
+            // Calculate target rotation
+            Quaternion targetRotation = Quaternion.LookRotation(cameraForward);
 
-            // Combine input with camera orientation
-            move = (cameraForward * moveInput.y + cameraRight * moveInput.x).normalized;
-        }
-        else {
-            // Fallback to local movement if no camera
-            move = new Vector3(moveInput.x, 0f, moveInput.y);
+            // Smoothly rotate towards the target rotation
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
 
-        // Apply movement
-        Vector3 worldMove = move * moveSpeed;
+        // Movement relative to camera direction
+        Vector3 move = new Vector3(moveInput.x, 0f, moveInput.y);
+        Vector3 worldMove = cameraTransform.TransformDirection(move) * moveSpeed;
+        worldMove.y = 0; // Ensure we don't move vertically
         rb.linearVelocity = new Vector3(worldMove.x, rb.linearVelocity.y, worldMove.z);
 
+        // Jumping
         if (jumpPressed && isGrounded) {
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, isInverted ? -jumpForce : jumpForce, rb.linearVelocity.z);
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
             jumpPressed = false;
         }
     }
 
-    void InvertGravity() {
-        isInverted = !isInverted;
-        gravityDirection = isInverted ? Vector3.up : Vector3.down;
-        Physics.gravity = gravityDirection * 9.81f;
-        transform.Rotate(180f, 0f, 0f);
-    }
-
     void OnCollisionStay(Collision collision) {
+        // Check if we're standing on something
         foreach (ContactPoint contact in collision.contacts) {
-            if (Vector3.Dot(contact.normal, gravityDirection) < -0.5f) {
+            if (contact.normal.y > 0.7f) {
                 isGrounded = true;
                 return;
             }
