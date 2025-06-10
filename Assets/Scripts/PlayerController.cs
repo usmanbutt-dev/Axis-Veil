@@ -6,14 +6,21 @@ public class PlayerController : MonoBehaviour {
     public float moveSpeed = 5f;
     public float jumpForce = 7f;
     public float rotationSpeed = 5f;
+    public float jumpCooldown = 0.5f; // Cooldown duration in seconds
+    private float jumpCooldownTimer = 0f;
     public Transform cameraTransform; // Reference to the camera transform
 
+    [SerializeField]
+    private Animator animator;
     private PlayerInputActions inputActions;
     private Rigidbody rb;
     private Vector2 moveInput;
     private bool jumpPressed = false;
     private bool isGrounded = false;
     private bool isMoving = false;
+
+    void OnEnable() => inputActions.Enable();
+    void OnDisable() => inputActions.Disable();
 
     void Awake() {
         inputActions = new PlayerInputActions();
@@ -34,8 +41,18 @@ public class PlayerController : MonoBehaviour {
         Cursor.visible = false;
     }
 
-    void OnEnable() => inputActions.Enable();
-    void OnDisable() => inputActions.Disable();
+    void Update() {
+        // Reduce jump cooldown timer
+        if (jumpCooldownTimer > 0f) {
+            jumpCooldownTimer -= Time.deltaTime;
+        }
+
+        // Update Animator parameters
+        animator.SetFloat("MoveX", moveInput.x);
+        animator.SetFloat("MoveY", moveInput.y);
+        animator.SetBool("IsGrounded", isGrounded);
+    }
+
 
     void FixedUpdate() {
         // Only align with camera when moving
@@ -59,9 +76,11 @@ public class PlayerController : MonoBehaviour {
         rb.linearVelocity = new Vector3(worldMove.x, rb.linearVelocity.y, worldMove.z);
 
         // Jumping
-        if (jumpPressed && isGrounded) {
+        if (jumpPressed && isGrounded && jumpCooldownTimer <= 0f) {
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            animator.SetTrigger("JumpTrigger"); // Move trigger here
             jumpPressed = false;
+            jumpCooldownTimer = jumpCooldown; // Start cooldown
         }
     }
 
