@@ -1,6 +1,6 @@
 # Axis Veil – Gravity Puzzle RPG Prototype
 
-![Axis Veil Banner](assets/banner.png) <!-- Optional: replace with actual image path -->
+![Axis Veil Banner](Banner.png)
 
 **Developer:** Muhammad Usman Butt  
 **Engine:** Unity 3D (URP)  
